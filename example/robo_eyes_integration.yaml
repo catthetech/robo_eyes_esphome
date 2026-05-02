@@ -1,0 +1,249 @@
+# =============================================================================
+# robo_eyes_integration.yaml
+# =============================================================================
+# Step-by-step guide to integrate robo_eyes into your existing YAML.
+# This file contains only the ADDITIONS and REPLACEMENTS needed.
+# Your existing config remains otherwise unchanged.
+#
+# Checklist:
+#   [1] Add robo_eyes to external_components
+#   [2] Add the robo_eyes: config block
+#   [3] Replace the VA-mode section in draw_display
+#   [4] (Optional) instant mood sync in ui_state_changed
+# =============================================================================
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# [1]  external_components — ADD robo_eyes alongside your existing entry
+# ═════════════════════════════════════════════════════════════════════════════
+# Find your existing external_components block and add the robo_eyes source.
+# Keep the intercom/i2s_audio_duplex/esp_aec entry exactly as-is.
+
+external_components:
+
+  # ── NEW: robo_eyes ────────────────────────────────────────────────────────
+  - source:
+      type: git
+      url: https://github.com/YOUR_GITHUB_USERNAME/robo_eyes_esphome   # <── update
+      ref: main
+    components: [robo_eyes]
+
+  # ── EXISTING (keep unchanged) ─────────────────────────────────────────────
+  - source:
+      type: git
+      url: https://github.com/n-IA-hane/esphome-intercom
+      ref: main
+    components: [intercom_api, i2s_audio_duplex, esp_aec]
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# [2]  robo_eyes: config block
+#      Add this as a new top-level key (same level as lvgl:, script:, etc.)
+# ═════════════════════════════════════════════════════════════════════════════
+
+robo_eyes:
+  id: robo_eyes_component
+
+  # ── Appearance ─────────────────────────────────────────────────────────────
+  eye_color:     0x0099FF   # hex RGB — eye fill colour
+  bg_color:      0x000000   # background (must match your display bg_color)
+  eye_width:     62
+  eye_height:    46
+  border_radius: 16         # 0 = sharp square corners, ~23+ = oval
+  eye_gap:       28         # horizontal gap between the two eyes
+  space_between: 0          # extra spread (negative = closer together)
+  pupil_size:    10         # radius in px — set to 0 to disable pupils
+  show_pupils:   true       # false = pupils never drawn regardless of size
+  cyclops:       false      # true = single centred eye
+
+  # ── Animation ──────────────────────────────────────────────────────────────
+  blink_interval:  4s       # average time between blinks
+  blink_variation: 2s       # ± random variation added per blink
+  wander_interval: 5s       # average time between wander target changes
+  fps:             25       # canvas redraw rate (5–60 fps)
+
+  # ── Display geometry ────────────────────────────────────────────────────────
+  display_width:  240
+  display_height: 240
+
+  # ── Voice assistant phase IDs ───────────────────────────────────────────────
+  # These already match your substitutions — only change if you customised them.
+  phase_idle_id:            1
+  phase_listening_id:       2
+  phase_thinking_id:        3
+  phase_replying_id:        4
+  phase_not_ready_id:      10
+  phase_error_id:          11
+  phase_muted_id:          12
+  phase_timer_finished_id: 20
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# [3]  draw_display script — REPLACE the inner lambda
+#
+#      In your YAML, find the `draw_display` script (around line 926).
+#      The lambda inside it ends with a large if/else chain that routes to
+#      LVGL pages.  Replace ONLY the `} else { // VA mode ... }` block with
+#      the one shown below.  Everything outside that block is unchanged.
+# ═════════════════════════════════════════════════════════════════════════════
+#
+# ── REMOVE this section from your draw_display lambda: ──────────────────────
+#
+#          } else {
+#            // VA mode
+#            int phase = id(voice_assistant_phase);
+#            if (phase == ${voice_assist_listening_phase_id}) {
+#              target = id(listening_page)->obj;
+#            } else if (phase == ${voice_assist_thinking_phase_id}) {
+#              target = id(thinking_page)->obj;
+#            } else if (phase == ${voice_assist_replying_phase_id}) {
+#              target = id(replying_page)->obj;
+#            } else if (phase == ${voice_assist_error_phase_id}) {
+#              target = id(error_page)->obj;
+#            } else if (phase == ${voice_assist_muted_phase_id}) {
+#              target = id(muted_page)->obj;
+#            } else if (phase == ${voice_assist_not_ready_phase_id}) {
+#              target = id(no_ha_page)->obj;
+#            } else if (phase == ${voice_assist_timer_finished_phase_id}) {
+#              target = id(timer_finished_page)->obj;
+#            } else {
+#              target = id(idle_page)->obj;
+#            }
+#          }
+#
+#          if (target == nullptr) return;
+#          ...
+#          lv_disp_load_scr(target);
+#
+# ── REPLACE with: ────────────────────────────────────────────────────────────
+#
+#          } else {
+#            // VA mode — robo_eyes handles the screen
+#            int phase = id(voice_assistant_phase);
+#            id(robo_eyes_component).set_phase(phase);
+#            id(robo_eyes_component).show();
+#            // Skip the page-changed / lv_disp_load_scr block below
+#            // by returning early. The post-routing steps (MWW self-heal,
+#            // timer overlay, IC idle labels) are handled in the steps
+#            // that follow the lambda in your draw_display script.
+#            return;
+#          }
+#
+#          if (target == nullptr) return;
+#          ... (rest of your original routing code, unchanged)
+#
+# Full corrected lambda for the routing block (copy-paste ready):
+
+script:
+  - id: draw_display
+    mode: restart
+    then:
+      - lambda: |-
+          lv_obj_t *target = nullptr;
+          bool va_mode_active = false;
+
+          if (id(init_in_progress)) {
+            target = id(initializing_page)->obj;
+
+          } else if (!wifi::global_wifi_component->is_connected()) {
+            target = id(no_wifi_page)->obj;
+
+          } else if (!api::global_api_server->is_connected()) {
+            target = id(no_ha_page)->obj;
+
+          } else if (id(current_mode) == 1) {
+            // ── Intercom mode (unchanged) ──────────────────────────────
+            auto s = id(intercom).get_state_str();
+            if      (s == "Ringing"  || s == "Incoming")  target = id(ic_ringing_in_page)->obj;
+            else if (s == "Calling"  || s == "Outgoing")  target = id(ic_ringing_out_page)->obj;
+            else if (s == "Streaming"|| s == "Answering") target = id(ic_in_call_page)->obj;
+            else                                          target = id(ic_idle_page)->obj;
+
+          } else {
+            // ── VA mode — hand off to robo_eyes ───────────────────────
+            va_mode_active = true;
+            int phase = id(voice_assistant_phase);
+            id(robo_eyes_component).set_phase(phase);
+            id(robo_eyes_component).show();
+          }
+
+          // Non-VA: load LVGL page if it changed
+          if (!va_mode_active && target != nullptr) {
+            bool page_changed = (target != lv_disp_get_scr_act(nullptr));
+            if (page_changed) {
+              lv_anim_del(id(idle_anim), nullptr);
+              lv_disp_load_scr(target);
+              lv_obj_invalidate(lv_disp_get_scr_act(nullptr));
+            }
+          }
+
+      # ── Post-routing steps (keep exactly as in your original) ─────────────
+
+      # Update IC idle labels when in intercom mode
+      - if:
+          condition:
+            lambda: |-
+              return id(current_mode) == 1
+                     && id(intercom).get_state_str() == "Idle"
+                     && !id(init_in_progress);
+          then:
+            - script.execute: update_ic_idle_labels
+
+      # Self-heal: ensure MWW is active in VA idle
+      - if:
+          condition:
+            and:
+              - lambda: |-
+                  return id(current_mode) == 0
+                         && id(voice_assistant_phase) == ${voice_assist_idle_phase_id}
+                         && !id(init_in_progress);
+              - switch.is_off: mute
+              - not:
+                  media_player.is_announcing:
+          then:
+            - if:
+                condition:
+                  not:
+                    micro_wake_word.is_running:
+                then:
+                  - micro_wake_word.start
+
+      # Always sync timer overlay
+      - script.execute: update_timer_state
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# [4]  OPTIONAL — instant mood sync in ui_state_changed
+#
+#      This makes the eyes switch mood immediately when the VA state changes,
+#      before draw_display runs.  Adds about 1 ms overhead per state change.
+#
+#      Find your `- id: !extend ui_state_changed` script and add the lambda
+#      below AS THE FIRST ITEM inside `then:`:
+# ═════════════════════════════════════════════════════════════════════════════
+
+# script:
+#   - id: !extend ui_state_changed
+#     then:
+#       - lambda: |-
+#           // Instant mood sync — runs before draw_display
+#           if (id(current_mode) == 0) {
+#             id(robo_eyes_component).set_phase(id(voice_assistant_phase));
+#           }
+#       # ... rest of your existing then: items unchanged ...
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# MOOD → PHASE MAPPING  (for reference)
+# ═════════════════════════════════════════════════════════════════════════════
+#
+#  phase_id  |  VA state          |  Mood      |  Eyes behaviour
+#  ----------+--------------------+------------+--------------------------------
+#  1         |  idle              |  DEFAULT   |  slow wander, autoblink
+#  2         |  listening         |  CURIOUS   |  taller, fast restless wander
+#  3         |  thinking          |  TIRED     |  droopy outer corner, look ↖
+#  4         |  replying          |  HAPPY     |  smile cut, bounce, fast blink
+#  10        |  not_ready         |  TIRED     |  same as thinking
+#  11        |  error             |  ANGRY     |  inner corner, no blink, jitter
+#  12        |  muted             |  CLOSED    |  eyes gradually close
+#  20        |  timer_finished    |  CONFUSED  |  fast jitter + shake
