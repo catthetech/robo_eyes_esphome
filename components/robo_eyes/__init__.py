@@ -99,6 +99,7 @@ SetMoodAction  = robo_eyes_ns.class_("SetMoodAction",  automation.Action)
     "robo_eyes.show",
     ShowAction,
     maybe_simple_id({cv.GenerateID(CONF_ID): cv.use_id(RoboEyes)}),
+    synchronous=True,
 )
 async def show_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -110,6 +111,7 @@ async def show_to_code(config, action_id, template_arg, args):
     "robo_eyes.hide",
     HideAction,
     maybe_simple_id({cv.GenerateID(CONF_ID): cv.use_id(RoboEyes)}),
+    synchronous=True,
 )
 async def hide_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -126,6 +128,7 @@ async def hide_to_code(config, action_id, template_arg, args):
             cv.Required("phase"): cv.templatable(cv.int_),
         }
     ),
+    synchronous=True,
 )
 async def set_phase_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -144,6 +147,7 @@ async def set_phase_to_code(config, action_id, template_arg, args):
             cv.Required("mood"): cv.enum(MOODS, upper=True),
         }
     ),
+    synchronous=True,
 )
 async def set_mood_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
