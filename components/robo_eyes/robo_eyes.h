@@ -37,6 +37,7 @@ enum class Mood : uint8_t {
 class RoboEyes : public Component {
    public:
     // ── Setters ───────────────────────────────────────────────────────────────
+    void set_enabled(bool e)              { enabled_       = e; }
     void set_eye_color(uint32_t c)        { eye_color_     = c; }
     void set_bg_color(uint32_t c)         { bg_color_      = c; }
     void set_eye_width(int v)             { eye_width_     = v; }
@@ -84,6 +85,7 @@ class RoboEyes : public Component {
 
    protected:
     // ── Configuration ─────────────────────────────────────────────────────────
+    bool     enabled_           = true;
     uint32_t eye_color_         = 0x0099FF;
     uint32_t bg_color_          = 0x000000;
     int      eye_width_         = 62;

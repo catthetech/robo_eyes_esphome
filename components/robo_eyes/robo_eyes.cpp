@@ -110,6 +110,7 @@ void RoboEyes::s_draw_cb(lv_event_t *e) {
 void RoboEyes::tick() {
     if (!draw_obj_ || !screen_) return;
     if (lv_scr_act() != screen_) return;
+    if (!enabled_) return;
 
     uint32_t now = millis_();
     frame_++;

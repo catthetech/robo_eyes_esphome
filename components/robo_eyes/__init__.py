@@ -27,6 +27,7 @@ MOODS = {
 }
 
 # ── Config keys ───────────────────────────────────────────────────────────────
+CONF_ENABLED              = "enabled"
 CONF_EYE_COLOR            = "eye_color"
 CONF_BG_COLOR             = "bg_color"
 CONF_EYE_WIDTH            = "eye_width"
@@ -58,6 +59,7 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(RoboEyes),
         # Appearance
+        cv.Optional(CONF_ENABLED,       default=True): cv.boolean,
         cv.Optional(CONF_EYE_COLOR,     default=0x0099FF): cv.int_,
         cv.Optional(CONF_BG_COLOR,      default=0x000000): cv.int_,
         cv.Optional(CONF_EYE_WIDTH,     default=62):  cv.int_range(min=10, max=120),
@@ -160,6 +162,8 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
+
+    cg.add(var.set_enabled(config[CONF_ENABLED]))
     cg.add(var.set_eye_color(config[CONF_EYE_COLOR]))
     cg.add(var.set_bg_color(config[CONF_BG_COLOR]))
     cg.add(var.set_eye_width(config[CONF_EYE_WIDTH]))
