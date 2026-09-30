@@ -193,7 +193,7 @@ void RoboEyes::tick() {
 
     // Update background colour and request redraw
     lv_obj_set_style_bg_color(draw_obj_, lv_color_hex(bg_color_), LV_PART_MAIN);
-    lv_obj_invalidate(draw_obj_);
+    // lv_obj_invalidate(draw_obj_);
 }
 
 // =============================================================================
